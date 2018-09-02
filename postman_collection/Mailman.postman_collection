@@ -1,0 +1,131 @@
+{
+	"variables": [],
+	"info": {
+		"name": "Mailman",
+		"_postman_id": "d368a62e-6d4b-29a3-5494-187e1314e571",
+		"description": "",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create random Mailbox",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"var jsonData = JSON.parse(responseBody);",
+							"postman.setEnvironmentVariable(\"mailbox\", jsonData.name);"
+						]
+					}
+				}
+			],
+			"request": {
+				"url": "http://localhost:9000/mailboxes",
+				"method": "POST",
+				"header": [],
+				"body": {},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "Add Mail to Mailbox",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							"var jsonData = JSON.parse(responseBody);",
+							"postman.setEnvironmentVariable(\"mailId\", jsonData.id);"
+						]
+					}
+				}
+			],
+			"request": {
+				"url": "http://localhost:9000/mailboxes/{{mailbox}}/messages",
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"description": ""
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"from\": \"test.user@gmail.com\",\n  \"to\": [\"{{mailbox}}\"],\n  \"cc\": [\"scala-user@googlegroups.com\", \"scala-language@googlegroups.com\"],\n  \"subject\": \"Hello World!\",\n  \"content\": \"Dear receiver! This is a test mail from a test user! Bests, Janos\"\n}"
+				},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "Get Mail by Id",
+			"request": {
+				"url": "http://localhost:9000/mailboxes/{{mailbox}}/messages/{{mailId}}",
+				"method": "GET",
+				"header": [],
+				"body": {},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Mail by Id",
+			"request": {
+				"url": "http://localhost:9000/mailboxes/{{mailbox}}/messages/{{mailId}}",
+				"method": "DELETE",
+				"header": [],
+				"body": {},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "Get Mails By Mailbox",
+			"request": {
+				"url": {
+					"raw": "http://localhost:9000/mailboxes/{{mailbox}}/messages?page=1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "9000",
+					"path": [
+						"mailboxes",
+						"{{mailbox}}",
+						"messages"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1",
+							"equals": true,
+							"description": ""
+						}
+					],
+					"variable": []
+				},
+				"method": "GET",
+				"header": [],
+				"body": {},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Mailbox",
+			"request": {
+				"url": "http://localhost:9000/mailboxes/{{mailbox}}",
+				"method": "DELETE",
+				"header": [],
+				"body": {},
+				"description": ""
+			},
+			"response": []
+		}
+	]
+}
