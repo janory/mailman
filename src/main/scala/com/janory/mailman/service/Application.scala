@@ -1,6 +1,7 @@
 package com.janory.mailman.service
 
 import akka.actor.{Actor, ActorLogging, Props, SupervisorStrategy, Terminated}
+import com.janory.mailman.service.routes.MailmanRoutes
 
 object Application {
 
@@ -14,9 +15,12 @@ class Application(settings: Settings) extends Actor with ActorLogging {
 
   override def supervisorStrategy: SupervisorStrategy = SupervisorStrategy.stoppingStrategy
 
+  private val mailmanRouter = context.actorOf(MailmanRouter(), MailmanRouter.Name)
+
+
   private val httpServer = context.actorOf(
     HttpServer(
-      MailmanRoutes(),
+      MailmanRoutes(mailmanRouter),
       settings.http.interface,
       settings.http.port
     )
