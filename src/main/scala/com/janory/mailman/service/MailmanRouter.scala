@@ -18,9 +18,14 @@ object MailmanRouter {
   case object MailNotFound
   case object MailboxDeleted
   case object MailRemoved
+  case class PagedMails(page: Int,
+                        nextPage: Option[Int],
+                        numberOfPages: Int,
+                        numberOfEntries: Int,
+                        mails: Iterable[Mail])
   case class Mailbox(name: String)
   case class AddMail(mailboxName: String, mail: Mail)
-  case class GetMailByMailbox()
+  case class GetMailByMailbox(mailboxName: String, page: Int, size: Int)
   case class GetMailById(mailboxName: String, mailId: Int)
   case class DeleteMailbox(mailboxName: String)
   case class DeleteMailById(mailboxName: String, mailId: Int)
@@ -48,8 +53,8 @@ class MailmanRouter() extends Actor {
 
     case CreateMailbox =>
       val newName = startMailbox()
-      sender() ! Mailbox(newName._1)
       context.become(receive(mailboxes + newName))
+      sender() ! Mailbox(newName._1)
 
     case msg @ AddMail(mailboxName, _) =>
       mailboxes.get(mailboxName) match {
@@ -59,7 +64,13 @@ class MailmanRouter() extends Actor {
           sender() ! MailboxNotFound
       }
 
-    case GetMailByMailbox => ()
+    case msg @ GetMailByMailbox(mailboxName, _, _) =>
+      mailboxes.get(mailboxName) match {
+        case Some(mailbox) =>
+          mailbox ! (sender(), msg)
+        case None =>
+          sender() ! MailboxNotFound
+      }
 
     case msg @ GetMailById(mailboxName, _) =>
       mailboxes.get(mailboxName) match {
@@ -73,6 +84,7 @@ class MailmanRouter() extends Actor {
       mailboxes.get(mailboxName) match {
         case Some(mailbox) =>
           mailbox ! PoisonPill
+          context.become(receive(mailboxes - mailboxName))
           sender() ! MailboxDeleted
         case None =>
           sender() ! MailboxNotFound
@@ -107,6 +119,7 @@ object MailboxStorage {
 
 class MailboxStorage extends Actor {
   import MailboxStorage._
+  import scala.math.ceil
 
   def receive = receive(SortedMap.empty[Int, Mail])
 
@@ -115,14 +128,23 @@ class MailboxStorage extends Actor {
     case (receiver: ActorRef, AddMail(_, mail)) =>
       val newId         = if (mails.isEmpty) 1 else mails.lastKey + 1
       val mailToPersist = mail.copy(id = Some(newId), datetime = Some(Instant.now()))
-      receiver ! mailToPersist
       context.become(
         receive(
           mails + (newId -> mailToPersist)
         )
       )
+      receiver ! mailToPersist
 
-    case message: GetMailByMailbox => ()
+    case (receiver: ActorRef, GetMailByMailbox(_, page, size)) =>
+      val mailboxSize   = mails.size
+      val startItem     = (page - 1) * size
+      val numberOfPages = ceil(mailboxSize.toDouble / size.toDouble).toInt
+      val nextPage      = if (page < numberOfPages) Some(page + 1) else None
+      receiver ! PagedMails(page,
+                            nextPage,
+                            numberOfPages,
+                            mailboxSize,
+                            mails.slice(startItem, startItem + size).values)
 
     case (receiver: ActorRef, message: GetMailById) =>
       mails.get(message.mailId) match {
@@ -135,12 +157,12 @@ class MailboxStorage extends Actor {
     case (receiver: ActorRef, DeleteMailById(_, mailId)) =>
       mails.get(mailId) match {
         case Some(_) =>
-          receiver ! MailRemoved
           context.become(
             receive(
               mails - mailId
             )
           )
+          receiver ! MailRemoved
         case None =>
           receiver ! MailNotFound
       }

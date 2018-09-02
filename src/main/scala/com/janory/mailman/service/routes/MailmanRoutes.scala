@@ -26,6 +26,8 @@ object MailmanRoutes extends FailFastCirceSupport {
   private val MailboxNotFoundMessage = parse("""{ "message": "Mailbox not found!" }""").right.get
   private val MailNotFoundMessage    = parse("""{ "message": "Mail not found!" }""").right.get
 
+  final val DefaultPageSize = 10
+
   def apply(mailmanRouter: ActorRef): Route =
     pathPrefix("mailboxes") {
       extractLog { log =>
@@ -33,8 +35,8 @@ object MailmanRoutes extends FailFastCirceSupport {
           post {
             onSuccess(mailmanRouter ? CreateMailbox) {
               case mailbox: Mailbox =>
-                log.info("[CREATED] Mailbox: {}", mailbox)
-                complete((StatusCodes.Created, mailbox.name))
+                log.info("[CREATED] Mailbox: {}", mailbox.name)
+                complete((StatusCodes.Created, mailbox))
               case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
             }
           }
@@ -56,7 +58,7 @@ object MailmanRoutes extends FailFastCirceSupport {
                 entity(as[Mail]) { newMail =>
                   onSuccess(mailmanRouter ? AddMail(mailboxName, newMail)) {
                     case persistedMail: Mail =>
-                      log.info("[CREATED] Mail with id: {} for Mailbox: {}",
+                      log.info("[CREATED] Mail by id: {} for Mailbox: {}",
                                persistedMail.id.get,
                                mailboxName)
                       complete((StatusCodes.Created, persistedMail))
@@ -65,7 +67,12 @@ object MailmanRoutes extends FailFastCirceSupport {
                 }
               } ~
               get {
-                complete()
+                parameter('page ? 1, 'size ? DefaultPageSize) { (page, size) =>
+                  onSuccess(mailmanRouter ? GetMailByMailbox(mailboxName, page, size)) {
+                    case mails: PagedMails => complete((StatusCodes.OK, mails))
+                    case MailboxNotFound   => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
+                  }
+                }
               }
             } ~
             path(IntNumber) { mailId =>
@@ -79,7 +86,7 @@ object MailmanRoutes extends FailFastCirceSupport {
               delete {
                 onSuccess(mailmanRouter ? DeleteMailById(mailboxName, mailId)) {
                   case MailRemoved =>
-                    log.info("[DELETED] Mail with id: {} for Mailbox: {}", mailId, mailboxName)
+                    log.info("[DELETED] Mail by id: {} for Mailbox: {}", mailId, mailboxName)
                     complete(StatusCodes.NoContent)
                   case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
                   case MailNotFound    => complete(StatusCodes.NotFound, MailNotFoundMessage)
