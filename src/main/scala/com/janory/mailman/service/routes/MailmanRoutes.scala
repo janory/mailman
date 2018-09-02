@@ -8,53 +8,73 @@ import akka.http.scaladsl.server.directives.MethodDirectives.post
 import akka.http.scaladsl.server.directives.RouteDirectives.complete
 import akka.pattern.ask
 import akka.util.Timeout
-import com.janory.mailman.service.MailmanRouter.CreateMailbox
+import com.janory.mailman.service.MailboxStorage.Mail
+import com.janory.mailman.service.MailmanRouter.{MailboxNotFound, _}
+import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
+import io.circe.generic.extras.Configuration
+import io.circe.generic.extras.auto._
+import io.circe.parser._
+import io.circe.java8.time._
 
 import scala.concurrent.duration._
 
-object MailmanRoutes {
+object MailmanRoutes extends FailFastCirceSupport {
 
-  import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+  implicit val timeout: Timeout            = Timeout(2.seconds)
+  implicit val customConfig: Configuration = Configuration.default.withDefaults
 
-  implicit val timeout: Timeout = Timeout(5.seconds)
+  private val MailboxNotFoundMessage = parse("""{ "message": "Mailbox not found!" }""").right.get
+  private val MailNotFoundMessage    = parse("""{ "message": "Mail not found!" }""").right.get
 
   def apply(mailmanRouter: ActorRef): Route =
     pathPrefix("mailboxes") {
-      pathEnd {
-        post {
-          extractLog { log =>
+      extractLog { log =>
+        pathEnd {
+          post {
             onSuccess(mailmanRouter ? CreateMailbox) {
-              case mailboxName: String =>
-                log.info("Created mailbox: {}", mailboxName)
-                complete((StatusCodes.Created, mailboxName))
+              case mailbox: Mailbox =>
+                log.info("[CREATED] Mailbox: {}", mailbox)
+                complete((StatusCodes.Created, mailbox))
+              case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
             }
           }
-        }
-      } ~
-      pathPrefix(Segment) { mailboxName =>
-        pathEnd {
-          delete {
-            complete()
-          }
         } ~
-        pathPrefix("messages") {
+        pathPrefix(Segment) { mailboxName =>
           pathEnd {
-            post {
-              complete()
-            } ~
-            get {
-              complete(mailboxName)
-            } ~
             delete {
               complete()
             }
           } ~
-          path(IntNumber) { mailId =>
-            get {
-              complete(s"$mailboxName $mailId")
+          pathPrefix("messages") {
+            pathEnd {
+              post {
+                entity(as[Mail]) { newMail =>
+                  onSuccess(mailmanRouter ? AddMessage(mailboxName, newMail)) {
+                    case persistedMail: Mail =>
+                      log.info("[CREATED] Mail with id: {} for Mailbox: {}", persistedMail.id.get, mailboxName)
+                      complete((StatusCodes.Created, persistedMail))
+                    case MailboxNotFound     => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
+                  }
+                }
+              } ~
+              get {
+                complete()
+              } ~
+              delete {
+                complete()
+              }
             } ~
-            delete {
-              complete()
+            path(IntNumber) { mailId =>
+              get {
+                onSuccess(mailmanRouter ? GetMessageById(mailboxName, mailId)) {
+                  case mail: Mail      => complete((StatusCodes.OK, mail))
+                  case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
+                  case MailNotFound    => complete(StatusCodes.NotFound, MailNotFoundMessage)
+                }
+              } ~
+              delete {
+                complete()
+              }
             }
           }
         }
