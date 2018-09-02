@@ -16,12 +16,14 @@ object MailmanRouter {
   case object CreateMailbox
   case object MailboxNotFound
   case object MailNotFound
+  case object MailboxDeleted
+  case object MailRemoved
   case class Mailbox(name: String)
-  case class AddMessage(mailboxName: String, mail: Mail)
-  case class GetMessagesByMailbox()
-  case class GetMessageById(mailboxName: String, mailId: Int)
+  case class AddMail(mailboxName: String, mail: Mail)
+  case class GetMailByMailbox()
+  case class GetMailById(mailboxName: String, mailId: Int)
   case class DeleteMailbox(mailboxName: String)
-  case class DeleteMessageById()
+  case class DeleteMailById(mailboxName: String, mailId: Int)
 
   def apply() =
     Props(
@@ -49,40 +51,40 @@ class MailmanRouter() extends Actor {
       sender() ! Mailbox(newName._1)
       context.become(receive(mailboxes + newName))
 
-    case msg @ AddMessage(mailboxName, _) =>
+    case msg @ AddMail(mailboxName, _) =>
       mailboxes.get(mailboxName) match {
-        case Some(mailbox) => {
+        case Some(mailbox) =>
           mailbox ! (sender(), msg)
-        }
-        case None => {
+        case None =>
           sender() ! MailboxNotFound
-        }
       }
 
-    case GetMessagesByMailbox => ()
+    case GetMailByMailbox => ()
 
-    case msg @ GetMessageById(mailboxName, _) =>
+    case msg @ GetMailById(mailboxName, _) =>
       mailboxes.get(mailboxName) match {
-        case Some(mailbox) => {
+        case Some(mailbox) =>
           mailbox ! (sender(), msg)
-        }
-        case None => {
+        case None =>
           sender() ! MailboxNotFound
-        }
       }
 
     case DeleteMailbox(mailboxName) =>
       mailboxes.get(mailboxName) match {
-        case Some(mailbox) => {
+        case Some(mailbox) =>
           mailbox ! PoisonPill
-          sender() ! s"Mailbox '$mailboxName' is deleted!"
-        }
-        case None => {
+          sender() ! MailboxDeleted
+        case None =>
           sender() ! MailboxNotFound
-        }
       }
 
-    case DeleteMessageById => ()
+    case msg @ DeleteMailById(mailboxName, _) =>
+      mailboxes.get(mailboxName) match {
+        case Some(mailbox) =>
+          mailbox ! (sender(), msg)
+        case None =>
+          sender() ! MailboxNotFound
+      }
   }
 
   def startMailbox(): (String, ActorRef) = {
@@ -110,7 +112,7 @@ class MailboxStorage extends Actor {
 
   def receive(mails: SortedMap[Int, Mail]): Receive = {
 
-    case (receiver: ActorRef, AddMessage(_, mail)) =>
+    case (receiver: ActorRef, AddMail(_, mail)) =>
       val newId         = if (mails.isEmpty) 1 else mails.lastKey + 1
       val mailToPersist = mail.copy(id = Some(newId), datetime = Some(Instant.now()))
       receiver ! mailToPersist
@@ -120,18 +122,27 @@ class MailboxStorage extends Actor {
         )
       )
 
-    case message: GetMessagesByMailbox => ()
+    case message: GetMailByMailbox => ()
 
-    case (receiver: ActorRef, message: GetMessageById) =>
+    case (receiver: ActorRef, message: GetMailById) =>
       mails.get(message.mailId) match {
-        case Some(mail) => {
+        case Some(mail) =>
           receiver ! mail
-        }
-        case None => {
+        case None =>
           receiver ! MailNotFound
-        }
       }
 
-    case message: DeleteMessageById => ()
+    case (receiver: ActorRef, DeleteMailById(_, mailId)) =>
+      mails.get(mailId) match {
+        case Some(_) =>
+          receiver ! MailRemoved
+          context.become(
+            receive(
+              mails - mailId
+            )
+          )
+        case None =>
+          receiver ! MailNotFound
+      }
   }
 }

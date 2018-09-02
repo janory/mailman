@@ -34,7 +34,7 @@ object MailmanRoutes extends FailFastCirceSupport {
             onSuccess(mailmanRouter ? CreateMailbox) {
               case mailbox: Mailbox =>
                 log.info("[CREATED] Mailbox: {}", mailbox)
-                complete((StatusCodes.Created, mailbox))
+                complete((StatusCodes.Created, mailbox.name))
               case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
             }
           }
@@ -42,38 +42,48 @@ object MailmanRoutes extends FailFastCirceSupport {
         pathPrefix(Segment) { mailboxName =>
           pathEnd {
             delete {
-              complete()
+              onSuccess(mailmanRouter ? DeleteMailbox(mailboxName)) {
+                case MailboxDeleted =>
+                  log.info("[DELETED] Mailbox: {}", mailboxName)
+                  complete(StatusCodes.NoContent)
+                case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
+              }
             }
           } ~
           pathPrefix("messages") {
             pathEnd {
               post {
                 entity(as[Mail]) { newMail =>
-                  onSuccess(mailmanRouter ? AddMessage(mailboxName, newMail)) {
+                  onSuccess(mailmanRouter ? AddMail(mailboxName, newMail)) {
                     case persistedMail: Mail =>
-                      log.info("[CREATED] Mail with id: {} for Mailbox: {}", persistedMail.id.get, mailboxName)
+                      log.info("[CREATED] Mail with id: {} for Mailbox: {}",
+                               persistedMail.id.get,
+                               mailboxName)
                       complete((StatusCodes.Created, persistedMail))
-                    case MailboxNotFound     => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
+                    case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
                   }
                 }
               } ~
               get {
                 complete()
-              } ~
-              delete {
-                complete()
               }
             } ~
             path(IntNumber) { mailId =>
               get {
-                onSuccess(mailmanRouter ? GetMessageById(mailboxName, mailId)) {
+                onSuccess(mailmanRouter ? GetMailById(mailboxName, mailId)) {
                   case mail: Mail      => complete((StatusCodes.OK, mail))
                   case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
                   case MailNotFound    => complete(StatusCodes.NotFound, MailNotFoundMessage)
                 }
               } ~
               delete {
-                complete()
+                onSuccess(mailmanRouter ? DeleteMailById(mailboxName, mailId)) {
+                  case MailRemoved =>
+                    log.info("[DELETED] Mail with id: {} for Mailbox: {}", mailId, mailboxName)
+                    complete(StatusCodes.NoContent)
+                  case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)
+                  case MailNotFound    => complete(StatusCodes.NotFound, MailNotFoundMessage)
+                }
               }
             }
           }
