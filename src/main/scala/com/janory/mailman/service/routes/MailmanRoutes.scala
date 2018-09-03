@@ -8,7 +8,7 @@ import akka.http.scaladsl.server.directives.MethodDirectives.post
 import akka.http.scaladsl.server.directives.RouteDirectives.complete
 import akka.pattern.ask
 import akka.util.Timeout
-import com.janory.mailman.service.MailboxStorage.Mail
+import com.janory.mailman.service.MailboxStorage.{Mail, NewMail, PagedMails}
 import com.janory.mailman.service.MailmanRouter.{MailboxNotFound, _}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe.generic.extras.Configuration
@@ -55,11 +55,11 @@ object MailmanRoutes extends FailFastCirceSupport {
           pathPrefix("messages") {
             pathEnd {
               post {
-                entity(as[Mail]) { newMail =>
+                entity(as[NewMail]) { newMail =>
                   onSuccess(mailmanRouter ? AddMail(mailboxName, newMail)) {
                     case persistedMail: Mail =>
                       log.info("[CREATED] Mail by id: {} for Mailbox: {}",
-                               persistedMail.id.get,
+                               persistedMail.id,
                                mailboxName)
                       complete((StatusCodes.Created, persistedMail))
                     case MailboxNotFound => complete(StatusCodes.NotFound, MailboxNotFoundMessage)

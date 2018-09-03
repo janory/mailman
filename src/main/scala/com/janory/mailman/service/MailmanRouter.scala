@@ -1,8 +1,9 @@
 package com.janory.mailman.service
 
 import java.util.UUID
+
 import akka.actor.{Actor, ActorRef, PoisonPill, Props}
-import com.janory.mailman.service.MailboxStorage.Mail
+import com.janory.mailman.service.MailboxStorage.{Mail, NewMail}
 
 object MailmanRouter {
 
@@ -13,13 +14,8 @@ object MailmanRouter {
   case object MailNotFound
   case object MailboxDeleted
   case object MailRemoved
-  case class PagedMails(page: Int,
-                        nextPage: Option[Int],
-                        numberOfPages: Int,
-                        numberOfEntries: Int,
-                        mails: Vector[Mail])
   case class Mailbox(name: String)
-  case class AddMail(mailboxName: String, mail: Mail)
+  case class AddMail(mailboxName: String, mail: NewMail)
   case class GetMailByMailbox(mailboxName: String, page: Int, size: Int)
   case class GetMailById(mailboxName: String, mailId: Int)
   case class DeleteMailbox(mailboxName: String)

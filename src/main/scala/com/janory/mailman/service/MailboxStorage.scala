@@ -9,8 +9,22 @@ import scala.collection.immutable.ListMap
 object MailboxStorage {
   def apply() = Props(new MailboxStorage())
 
-  case class Mail(id: Option[Int],
-                  datetime: Option[Instant],
+  case class PagedMails(page: Int,
+                        nextPage: Option[Int],
+                        numberOfPages: Int,
+                        numberOfEntries: Int,
+                        mails: Vector[StrippedMail])
+
+  case class StrippedMail(id: Int, from: String, subject: String)
+
+  case class NewMail(from: String,
+                     to: Vector[String],
+                     cc: Vector[String] = Vector.empty,
+                     subject: String,
+                     content: String) {}
+
+  case class Mail(id: Int,
+                  datetime: Instant,
                   from: String,
                   to: Vector[String],
                   cc: Vector[String] = Vector.empty,
@@ -27,8 +41,14 @@ class MailboxStorage extends Actor {
   def receive(mails: ListMap[Int, Mail]): Receive = {
 
     case (receiver: ActorRef, AddMail(_, mail)) =>
-      val newId         = if (mails.isEmpty) 1 else mails.last._1 + 1
-      val mailToPersist = mail.copy(id = Some(newId), datetime = Some(Instant.now()))
+      val newId = if (mails.isEmpty) 1 else mails.last._1 + 1
+      val mailToPersist = Mail(id = newId,
+                               datetime = Instant.now(),
+                               from = mail.from,
+                               to = mail.to,
+                               cc = mail.cc,
+                               subject = mail.subject,
+                               content = mail.content)
       context.become(
         receive(
           mails + (newId -> mailToPersist)
@@ -41,11 +61,18 @@ class MailboxStorage extends Actor {
       val startItem     = mailboxSize - page * size
       val numberOfPages = ceil(mailboxSize.toDouble / size.toDouble).toInt
       val nextPage      = if (page < numberOfPages) Some(page + 1) else None
-      receiver ! PagedMails(page,
-                            nextPage,
-                            numberOfPages,
-                            mailboxSize,
-                            mails.slice(startItem, startItem + size).values.toVector.reverse)
+      receiver ! PagedMails(
+        page,
+        nextPage,
+        numberOfPages,
+        mailboxSize,
+        mails
+          .slice(startItem, startItem + size)
+          .values
+          .toVector
+          .map(mail => StrippedMail(mail.id, mail.from, mail.subject))
+          .reverse
+      )
 
     case (receiver: ActorRef, message: GetMailById) =>
       mails.get(message.mailId) match {
