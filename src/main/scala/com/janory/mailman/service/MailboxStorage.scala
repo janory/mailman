@@ -1,10 +1,10 @@
 package com.janory.mailman.service
+
 import java.time.Instant
 
 import akka.actor.{Actor, ActorRef, Props}
 import com.janory.mailman.service.MailmanRouter._
-
-import scala.collection.SortedMap
+import scala.collection.immutable.ListMap
 
 object MailboxStorage {
   def apply() = Props(new MailboxStorage())
@@ -22,12 +22,12 @@ class MailboxStorage extends Actor {
   import MailboxStorage._
   import scala.math.ceil
 
-  def receive = receive(SortedMap.empty[Int, Mail])
+  def receive = receive(ListMap.empty[Int, Mail])
 
-  def receive(mails: SortedMap[Int, Mail]): Receive = {
+  def receive(mails: ListMap[Int, Mail]): Receive = {
 
     case (receiver: ActorRef, AddMail(_, mail)) =>
-      val newId         = if (mails.isEmpty) 1 else mails.lastKey + 1
+      val newId         = if (mails.isEmpty) 1 else mails.last._1 + 1
       val mailToPersist = mail.copy(id = Some(newId), datetime = Some(Instant.now()))
       context.become(
         receive(
@@ -38,14 +38,14 @@ class MailboxStorage extends Actor {
 
     case (receiver: ActorRef, GetMailByMailbox(_, page, size)) =>
       val mailboxSize   = mails.size
-      val startItem     = (page - 1) * size
+      val startItem     = mailboxSize - page * size
       val numberOfPages = ceil(mailboxSize.toDouble / size.toDouble).toInt
       val nextPage      = if (page < numberOfPages) Some(page + 1) else None
       receiver ! PagedMails(page,
                             nextPage,
                             numberOfPages,
                             mailboxSize,
-                            mails.slice(startItem, startItem + size).values)
+                            mails.slice(startItem, startItem + size).values.toVector.reverse)
 
     case (receiver: ActorRef, message: GetMailById) =>
       mails.get(message.mailId) match {
