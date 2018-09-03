@@ -17,7 +17,7 @@ object MailmanRouter {
                         nextPage: Option[Int],
                         numberOfPages: Int,
                         numberOfEntries: Int,
-                        mails: Iterable[Mail])
+                        mails: Vector[Mail])
   case class Mailbox(name: String)
   case class AddMail(mailboxName: String, mail: Mail)
   case class GetMailByMailbox(mailboxName: String, page: Int, size: Int)
