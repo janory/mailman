@@ -3,7 +3,9 @@ package com.janory.mailman.service
 import java.util.UUID
 
 import akka.actor.{Actor, ActorRef, PoisonPill, Props}
-import com.janory.mailman.service.MailboxStorage.{Mail, NewMail}
+import com.janory.mailman.service.MailboxStorage.NewMail
+
+import scala.collection.immutable.HashMap
 
 object MailmanRouter {
 
@@ -38,9 +40,9 @@ class MailmanRouter() extends Actor {
   override def postStop(): Unit =
     super.postStop()
 
-  def receive = receive(Map.empty)
+  def receive = receive(HashMap.empty)
 
-  def receive(mailboxes: Map[String, ActorRef]): Receive = {
+  def receive(mailboxes: HashMap[String, ActorRef]): Receive = {
 
     case CreateMailbox =>
       val newMailbox = startMailbox()

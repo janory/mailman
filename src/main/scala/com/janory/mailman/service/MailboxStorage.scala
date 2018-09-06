@@ -4,7 +4,8 @@ import java.time.Instant
 
 import akka.actor.{Actor, ActorRef, Props}
 import com.janory.mailman.service.MailmanRouter._
-import scala.collection.immutable.ListMap
+
+import scala.collection.immutable.SortedMap
 
 object MailboxStorage {
   def apply() = Props(new MailboxStorage())
@@ -34,14 +35,15 @@ object MailboxStorage {
 
 class MailboxStorage extends Actor {
   import MailboxStorage._
+
   import scala.math.ceil
 
-  def receive = receive(ListMap.empty[Int, Mail])
+  def receive = receive(SortedMap.empty[Int, Mail])
 
-  def receive(mails: ListMap[Int, Mail]): Receive = {
+  def receive(mails: SortedMap[Int, Mail]): Receive = {
 
     case (receiver: ActorRef, AddMail(_, mail)) =>
-      val newId = if (mails.isEmpty) 1 else mails.last._1 + 1
+      val newId = if (mails.isEmpty) 1 else mails.lastKey + 1
       val mailToPersist = Mail(id = newId,
                                datetime = Instant.now(),
                                from = mail.from,

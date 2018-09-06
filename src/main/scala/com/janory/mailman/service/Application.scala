@@ -17,7 +17,6 @@ class Application(settings: Settings) extends Actor with ActorLogging {
 
   private val mailmanRouter = context.actorOf(MailmanRouter(), MailmanRouter.Name)
 
-
   private val httpServer = context.actorOf(
     HttpServer(
       MailmanRoutes(mailmanRouter),
