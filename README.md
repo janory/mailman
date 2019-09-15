@@ -1,6 +1,7 @@
 # mailman 📫
-Mailman is an in memory mail service, which helps you to avoid spams by easily creating random email addresses.
+mailman is an in memory mail service, which helps you to avoid spams by easily creating random email addresses.
 The service can be reached via an idiomatic REST API. Check the endpoints below.
+
 ## REST API 
 - `POST /mailboxes`: Create a new, random email address. 
 - `POST /mailboxes/{email address}/messages`: Create a new message for a specific email address. 
